@@ -1,5 +1,5 @@
 # SSAL
-SSAL (SaCode's Simple Audio Library) as the name implies is a simple audio library for playing .mp3 and .wav files on Windows.
+SSAL (SaCode's Simple Audio Library), as the name implies, is a simple audio library for playing .mp3 and .wav files on Windows written in C++.
 # How to build the library
 1. Install MingW with the Win32 headers and binaries.
 2. Build the library with entering `make build` in the cmd prompt.
@@ -19,3 +19,5 @@ int main(){
     return 0;
 };
 ```
+# Credit
+The idea for this library came from this [repo](https://github.com/Allyedge/allyaudio) by [Allyedge](https://github.com/Allyedge).

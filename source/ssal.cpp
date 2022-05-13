@@ -1,16 +1,20 @@
 #include "../include/SSAL.hpp"
+#include <windows.h>
+#include <fstream>
+#include <vector>
 int num=0;
 
 std::vector<std::string> id3_v2_tags = { "AENC", "APIC", "COMM", "COMR", "ENCR", "EQUA", "ETCO", "GEOB", "GRID", "IPLS", "LINK", "MCDI", "MLLT", "OWNE", "PRIV", "PCNT", "POPM", "POSS", "RBUF", "RVAD", "RVRB", "SYLT", "SYTC", "TALB", "TBPM", "TCOM", "TCON", "TCOP", "TDAT", "TDLY", "TENC", "TEXT", "TFLT", "TIME", "TIT1", "TIT2", "TIT3", "TKEY", "TLAN", "TLEN", "TMED", "TOAL", "TOFN", "TOLY", "TOPE", "TORY", "TOWN", "TPE1", "TPE2", "TPE3", "TPE4", "TPOS", "TPUB", "TRCK", "TRDA", "TRSN", "TRSO", "TSIZ", "TSRC", "TSSE", "TYER", "TXXX", "UFID", "USER", "USLT", "WCOM", "WCOP", "WOAF", "WOAR", "WOAS", "WORS", "WPAY", "WPUB", "WXXX" };
 std::vector<std::string> id3_v1_tags = { "BUF","CNT","COM","CRA","CRM","ETC","EQU","GEO","IPL","LNK","MCI","MLL","PIC","POP","REV","RVA","SLT","STC","TAL","TBP","TCM","TCO","TCR","TDA","TDY","TEN","TFT","TIM","TKE","TLA","TLE","TMT","TOA","TOF","TOL","TOR","TOT","TP1","TP2","TP3","TP4","TPA","TPB","TRC","TRD","TRK","TSI","TSS","TT1","TT2","TT3","TXT","TXX","TYE","UFI","ULT","WAF","WAR","WAS","WCM","WCP","WPB","WXX"};
 
 int SSAL::audio::checkError(int error_code, bool ssal_error/*=false*/) {
-    if(error_code) { 
+    if(!ssal_error) {
+        error="Error "+std::to_string(error_code);
         switch (error_code) {
-            case 257: error = "Error "+std::to_string(error_code)+": Invalid device ID (SSAL-"+std::to_string(num)+")"; break;
-            case 263: error = "Error "+std::to_string(error_code)+": Invalid device name (SSAL-"+std::to_string(num)+")"; break;
-            case 275: error = "Error "+std::to_string(error_code)+": File not found ("+file+")"; break;
-            case 296: error = "Error "+std::to_string(error_code)+": File invalid ("+file+")"; break;
+            case 257: error += ": Invalid device ID (SSAL-"+std::to_string(num)+")"; break;
+            case 263: error += ": Invalid device name (SSAL-"+std::to_string(num)+")"; break;
+            case 275: error += ": File not found ("+file+")"; break;
+            case 296: error += ": File invalid ("+file+")"; break;
             default:  break;
         }
     }
@@ -35,26 +39,75 @@ std::vector<std::string> split(std::string str) {
 }
   
 
-void SSAL::audio::load(std::string file, int start/*=0*/, int end/*=0*/, int loops/*=0*/) {
-    char path[MAX_PATH];
-    GetShortPathNameA(file.c_str(),path,sizeof(path));
-    SSAL::audio::file=file;Start=start;End=end; Loops=loops;
-    if (loops==-1) inf_loops=true;
+int SSAL::audio::load(std::string file, audioArgs a/*={}*/) {
+    char filename[1024];
+    std::string cmd = "IF EXIST "+file+" echo yes";
+    FILE* f = popen(cmd.c_str(), "r");
+    fgets(filename, 1024, f);
+    cmd=(std::string)filename;
 
-    char szCmd[MAX_PATH + 64];
-    sprintf( szCmd, "Open \"%s\" Type MPEGVideo alias SSAL-%d", path, num);
-    id="SSAL-"+std::to_string(num);
-    num++;
-    checkError(mciSendStringA( szCmd, NULL, 0, NULL ));
-    SSAL::track m(file);
-    track=m;
+    if (cmd!="yes\n") {
+        error="Error 275: File not found ("+file+")";
+        valid=false;
+        
+        return -1; 
+    }
+    else if (file.find("mp3") != std::string::npos || file.find("wav") != std::string::npos) {
+        char path[MAX_PATH];
+        GetShortPathNameA(file.c_str(),path,sizeof(path));
+        SSAL::audio::file=file; arg=a;
+    
+        if (a.loops==-1) inf_loops=true;
+    
+        char szCmd[MAX_PATH + 64];
+        sprintf( szCmd, "Open \"%s\" Type MPEGVideo alias SSAL-%d", path, num);
+        id="SSAL-"+std::to_string(num);
+        num++;
+        checkError(mciSendStringA( szCmd, NULL, 0, NULL ));
+        SSAL::track m(file);
+        track=m;
+        valid=true;
+    }
+    else { 
+        error="Error: You must provide an ID3 audio file (.mp3/.wav)"; 
+        valid=false;
+        return -1; 
+    }
+    
+    return 0;
 }
 
 void SSAL::audio::play() {
     std::string szCmd="play "+id+" notify";//+" Wait";
-    if (Start!=0) {szCmd+=" from "+std::to_string(Start*1000); }
-    if (End!=0) { szCmd+=" to "+std::to_string(End*1000); }
-    
+    if (arg.start_at>0) {szCmd+=" from "+std::to_string(arg.start_at*1000); }
+    if (arg.end_at>0) { szCmd+=" to "+std::to_string(arg.end_at*1000); }
+
+    if (arg.volume.value > -1) {
+        std::string c="setaudio "+id+"  volume to "+std::to_string(arg.volume.value);
+        checkError(mciSendStringA(c.c_str(), NULL, 0, 0 ));
+    }
+        
+    if (arg.volume.left_side || arg.volume.right_side) {
+        if (arg.volume.left_side) {
+            std::string c="setaudio "+id+" right volume to 0";
+            checkError(mciSendStringA(c.c_str(), NULL, 0, 0 ));
+            c = "setaudio "+id+" left volume to "+std::to_string(arg.volume.value);
+            checkError(mciSendStringA(c.c_str(), NULL, 0, 0 ));
+        }
+        else {
+            std::string c="setaudio "+id+" left volume to 0";
+            checkError(mciSendStringA(c.c_str(), NULL, 0, 0 ));
+            c = "setaudio "+id+" right volume to "+std::to_string(arg.volume.value);
+            checkError(mciSendStringA(c.c_str(), NULL, 0, 0 ));
+        }
+        
+    } 
+        
+    if (arg.speed != -1) {
+        std::string c = "set "+id+" speed "+std::to_string(int(arg.speed*1000) );
+        checkError(mciSendStringA(c.c_str(), NULL, 0, 0 ));
+    }
+
     checkError(mciSendStringA(szCmd.c_str(), NULL, 0, 0 ));
 }
 
@@ -87,15 +140,27 @@ bool SSAL::audio::isPlaying() {
     return done;
 }
 
-void SSAL::quit() { mciSendString(TEXT("Close All"), NULL, 0, 0 ); }
-SSAL::audio::audio(std::string file, int start/*=0*/, int end/*=0*/, int loops/*=0*/) { load(file, start, end, loops); }
-std::string SSAL::audio::getError() { return error; }
+void SSAL::quit() { 
+    mciSendString(TEXT("Close All"), NULL, 0, 0 ); 
+}
+
+SSAL::audio::audio(std::string file, audioArgs a/*={}*/) { 
+    load(file, a); 
+}
+
+std::string SSAL::audio::getError() { 
+    return error; 
+}
+
 
 int SSAL::audio::checkEvents() {
-    if (!isPlaying() && (Loops > 0 || inf_loops) ) { 
-        int i=-1;
-        if (Loops != -1) {Loops--; i=Loops;}
-        load(file,0,0,Loops); play(); 
+    if (!isPlaying() && (arg.loops > 0 || inf_loops) ) {
+        if (arg.loops != -1) arg.loops--;
+        arg.start_at=0;
+        arg.end_at=0;
+
+        load(file,arg); 
+        play(); 
     }
 
     return 0;
@@ -110,20 +175,21 @@ void SSAL::track::load(std::string filename) {
         std::streampos fileSize = file.tellg();
         file.seekg(0, std::ios::beg);
     
-        std::vector<BYTE> fileData(fileSize);
+        std::vector<unsigned char> fileData(fileSize);
         file.read((char*) &fileData[0], fileSize);
         data=fileData; id3_version=data[0x03];
         getAll();
     }
 }
 
-SSAL::track::track(std::string filename/*=""*/, bool load/*=true*/) { track::load(filename); }
+SSAL::track::track(std::string filename, bool load/*=true*/) { if (load) track::load(filename); }
 
 void SSAL::track::getAll() {
     char str[5];
-    for (int i=0x0a; i<0x120; i++) { 
+    for (int i=0x0a; i<data.size(); i++) { 
         sprintf(str, "%c%c%c%c", data[i], data[i+1], data[i+2], data[i+3]); std::string res = str;
         if (id3_version > 2) {
+
             if (res == "TIT2") { i+=6; title = findID3Data(i); }
             if (res == "TALB") { i+=6; album = findID3Data(i); }
             if (res == "TCOM") { i+=6; composers = split(findID3Data(i)); }
@@ -149,7 +215,7 @@ std::string SSAL::track::findID3Data(int& i, bool genre/*=false*/) {
     int non_ascii_count=0;
     bool ascii=false;
 
-    for (int x=4; x<30; x++) {
+    for (int x=4; x<100; x++) {
         int pos = i+x;
         if (data[pos]>=32 && data[pos]<=126) {
             ascii=true;
@@ -167,7 +233,7 @@ std::string SSAL::track::findID3Data(int& i, bool genre/*=false*/) {
 
                 for (int tags=0; tags<id3_v1_tags.size(); tags++) { if (res == id3_v1_tags[tags]) {done=true; break;}; }
             }
-            if (done || (ascii && non_ascii_count >= 2)) { break;}
+            if (done) { break;}
         
             result += data[pos];
         }

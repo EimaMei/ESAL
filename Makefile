@@ -11,4 +11,5 @@ build:
 	@$(GXX) -shared ssal.o -lwinmm -static -o libSSAL.a
 	rm ssal.o
 compile:
-	g++ -O2 main.cpp libSSAL.a
+	g++ -O2 main.cpp libSSAL.a -lmingw32 -static-libgcc -static-libstdc++ -o ssal.exe
+	./ssal
