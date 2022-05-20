@@ -1,15 +1,13 @@
 GXX = g++
 ARGS = -O2 -C --no-warnings
 SOURCEDIR = source/ssal.cpp
-WLIBS = -lwinmm
+WLIBS = -lmingw32 -static-libstdc++ -lwinmm
 
 all:
 	@make build
 	@make compile
-build:
+buildLibrary:
 	$(GXX) $(WARGS) $(SOURCEDIR) $(WLIBS) -c
-	@$(GXX) -shared ssal.o -lwinmm -static -o libSSAL.a
-	rm ssal.o
-compile:
-	g++ -O2 main.cpp libSSAL.a -lmingw32 -static-libgcc -static-libstdc++ -o ssal.exe
-	./ssal
+	@$(GXX) -shared ssal.o -lwinmm
+buildCMD:
+	$(GXX) -O2 $(SOURCEDIR) main.cpp $(WLIBS) -o ssal.exe
