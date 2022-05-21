@@ -1,7 +1,7 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
-#define VERSION "SSAL 0.2.0"
+#define VERSION "SSAL 0.2.1"
 #define MAX_SPEED 4 // BLUE STREAK (BLUE STREAK), SPEED BY, AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 
 namespace SSAL{

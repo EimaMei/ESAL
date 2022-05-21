@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
     SSAL::audioArgs a;
     for (int i=1; i<argc; i++) {
         std::string s(argv[i]);
-        if (s.find("mp3") != std::string::npos) {filename=s; arg="play";}
+        if (s.find("mp3") != std::string::npos) {filename=s; if (arg.size() == 0) arg="play";}
         else if (s == "--help" || s == "-h") {arg="help"; break;}
         else if (s == "--info" || s == "-i") {arg="info"; }
         else if (s == "--speed" || s == "-s") { i++; a.speed=std::stof(argv[i]); }
@@ -150,16 +150,12 @@ int main(int argc, char** argv) {
         printText("ID3 version: ") << audio.track.id3_version << std::endl;
     }
     else if (arg == "cover") {
-        std::cout << filename.size() << std::endl;
-        if (audio.track.cover.size() == 0) {
-            std::cout << printText("Error:",FOREGROUND_RED) << " Song " << printText(t) << " doesn't have an album cover." << std::endl;
-        }
+        if (audio.track.cover.size() == 0) std::cout << printText("Error:",FOREGROUND_RED) << " Song " << printText(t) << " doesn't have an album cover." << std::endl; 
         else  {
             std::fstream file(secondary_path, std::ios::trunc|std::ios::out|std::ios::binary);
-            for (const auto &e : audio.track.cover) {
-                file << e << "\n";
-            }
+            for (const auto &e : audio.track.cover) {file << e;}
             std::cout << "Sucessfully extracted the album cover for " << printText(t) << std::endl;
+            file.close();
         }
     }
     else if (filename.size() > 0) {
